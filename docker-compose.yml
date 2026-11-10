@@ -1,0 +1,67 @@
+# Full stack: docker compose up --build
+#   Web  http://localhost:3000
+#   API  http://localhost:3001
+# Code in ./apps is mounted into the containers, so edits apply without rebuilding.
+
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: request_desk
+      MARIADB_USER: request_desk
+      MARIADB_PASSWORD: request_desk
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  api:
+    build: ./apps/api
+    image: request-desk-challenge-api
+    environment:
+      DB_HOST: db
+      PHP_CLI_SERVER_WORKERS: 4   # lets health checks through while a slow request runs
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./apps/api:/app
+      - api-vendor:/app/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # PHP's built-in server can answer 200 even on a fatal error, so check the body too.
+      test: ["CMD", "php", "-r", "$$b = @file_get_contents('http://127.0.0.1:3001/up'); exit($$b === false || str_contains($$b, 'Fatal error') || str_contains($$b, 'Warning') ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 600s
+
+  web:
+    build: ./apps/web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/web:/app
+      - web-node-modules:/app/node_modules
+      - web-next:/app/.next
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  dbdata:
+  api-vendor:
+  web-node-modules:
+  web-next:

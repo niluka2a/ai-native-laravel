@@ -1,0 +1,93 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: request_desk
+          MARIADB_USER: request_desk
+          MARIADB_PASSWORD: request_desk
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: request_desk
+      DB_USERNAME: request_desk
+      DB_PASSWORD: request_desk
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      # Prefer a clean, reproducible install in CI.
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --working-dir=apps/api
+          npm ci --prefix apps/web
+
+      - name: Check submission artifacts
+        run: |
+          test -f README.md
+          test -f AI_USAGE.md
+          test -f DECISIONS.md
+          test -d apps/api
+          test -d apps/web
+
+      - name: Prepare environment
+        working-directory: apps/api
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Lint
+        run: npm run lint --if-present --prefix apps/web
+
+      - name: Typecheck
+        run: npm run typecheck --prefix apps/web
+
+      - name: Prepare test database
+        run: docker exec -i "${{ job.services.mariadb.id }}" mariadb -uroot -proot < docker/mariadb/init.sql
+
+      - name: Test
+        working-directory: apps/api
+        run: php artisan test
+
+      - name: Migrate
+        working-directory: apps/api
+        env:
+          DB_DATABASE: request_desk_app
+        run: php artisan migrate --force
+
+      - name: Build
+        run: npm run build --prefix apps/web
