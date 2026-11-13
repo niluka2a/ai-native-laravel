@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Data\ClassificationResult;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -37,5 +38,18 @@ class CustomerRequest extends Model
     public function latestNote(): HasOne
     {
         return $this->hasOne(RequestNote::class, 'request_id')->latestOfMany('created_at');
+    }
+
+    /**
+     * Store a classification result and move an open request to in_progress.
+     */
+    public function applyClassification(ClassificationResult $result): void
+    {
+        $this->category = $result->category->value;
+        $this->confidence = $result->confidence;
+
+        if ($this->status === 'open') {
+            $this->status = 'in_progress';
+        }
     }
 }

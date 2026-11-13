@@ -64,11 +64,4 @@ class RequestsService
             'confidence' => null,
         ]);
     }
-
-    public function save(CustomerRequest $request): CustomerRequest
-    {
-        $request->save();
-
-        return $request;
-    }
 }
