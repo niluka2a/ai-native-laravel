@@ -48,3 +48,9 @@ and what you would tackle next.
 `tests/Feature/RequestsListTest.php` covers counts, latest preview, the empty case, ordering and
 keys, the tie-break and a constant query count. Remaining gap: the endpoint is still
 unpaginated, so payload size grows with the number of requests.
+
+**CI migrate fix:** the `Migrate` step overrode `DB_DATABASE` to `request_desk_app`, which no step
+creates or grants, so it failed with `1044 Access denied`. I removed the override so migrations run
+against `request_desk`, which the MariaDB service creates and grants and which `.env.example` and
+docker-compose already use. I did not add `request_desk_app` to `init.sql`, because nothing else
+uses that database.
