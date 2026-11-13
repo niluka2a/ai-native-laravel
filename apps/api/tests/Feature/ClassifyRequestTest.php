@@ -147,14 +147,16 @@ class ClassifyRequestTest extends TestCase
         $this->classify(['message' => str_repeat('a', 2000)])->assertOk();
     }
 
-    public function test_classify_with_request_id_runs_two_queries(): void
+    public function test_classify_with_request_id_runs_three_queries(): void
     {
+        // Select, update and history insert. If the result does not change the row,
+        // Eloquent skips the update and it is 2.
         $row = $this->makeRequest('open');
 
         DB::enableQueryLog();
         $this->classify(['message' => 'Please fix my invoice today', 'requestId' => $row->id])->assertOk();
 
-        $this->assertCount(2, DB::getQueryLog());
+        $this->assertCount(3, DB::getQueryLog());
     }
 
     public function test_accepts_zero_as_a_message(): void

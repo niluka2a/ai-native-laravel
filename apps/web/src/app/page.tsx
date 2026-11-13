@@ -40,8 +40,12 @@ export default function HomePage() {
   const classifyMutation = useMutation({
     mutationFn: ({ id, message }: { id: string; message: string }) =>
       classifyMessage(message, id),
-    // The server sets category, confidence and open -> in_progress; refetch to show them.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: REQUESTS_KEY }),
+    // The server sets category, confidence and open -> in_progress, and appends a history row.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: REQUESTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['history'] }),
+      ]),
   });
 
   // One row action at a time: controls stay disabled until the action and the refetch settle.

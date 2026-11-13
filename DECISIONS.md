@@ -91,15 +91,50 @@ concrete `KeywordClassifier`.
 | `requestId` malformed | 404 | 422 |
 | `requestId` array | 500 | 422 |
 | 404 body text | `Request X not found` | Laravel's default model-not-found message |
-| queries with `requestId` | 3 | 2 |
+| queries with `requestId` | 3 | 2 (3 since task 5, which adds the history insert) |
 
 Success responses are unchanged (`{category, confidence, requestId}`), and characterisation
 tests written against the old code pass on both versions.
 
 ## Classification history
 
-What is the smallest useful release? Describe what you would store, when you would write it,
-how staff would filter it, and what the provider boundary would own. Say what you shipped.
+Before this change, a request only kept its latest classification. Classifying it again
+overwrote the category and confidence, so staff couldn't see what had changed or which
+classifier decided. The smallest useful release is an append-only log of stored classifications
+that staff can filter by category, newest first. I shipped that as a thin slice, plus a provider
+interface so the keyword classifier can be swapped later.
+
+**What I store.** One row per stored classification in `request_classifications`: the request,
+category, confidence, provider name and time. The confidence is the final value after the
+softening and threshold rules, so the history shows the same number staff saw on the request. I
+don't copy the message text. Messages can't be edited, so a copy would only duplicate possibly
+personal text. If messages become editable, I'd revisit this.
+
+**When I write it.** Only when classify saves a result to a request (a `requestId` is given), in
+the same transaction as the request update, so the two can't disagree. Previews without a
+`requestId` and failed calls (404, 422) write nothing, because a preview changes nothing and has
+no request to link to. I didn't backfill, because old classifications have no provider or time.
+The history starts empty, and the page tells staff to classify a request on `/`.
+
+**How staff filter it.** `/history` has a category dropdown and shows the newest first, 50 per
+page with Previous/Next. The API behind it, `GET /requests/history?category=`, rejects unknown
+categories with a 422 and treats an empty value as "all". Each page takes 2 queries (the rows,
+then their requests eager-loaded), with indexes on `(category, created_at)` and `(created_at)`.
+I used an auto-increment id so rows created in the same second still sort reliably.
+
+**Provider boundary.** `ClassifierProvider` has two methods, `classify()` and `name()`. It only
+produces the raw result; the confidence rules, saving and history stay in
+`ClassificationService`. `KeywordClassifier` is bound as the default in `AppServiceProvider`, so
+the app still runs locally with no API key, and switching provider is a one-line change. A test
+binds a fake provider and checks that its name is recorded.
+
+**Trade-off I accepted.** Classify with a `requestId` now runs 3 queries instead of 2 because of
+the history insert. It stays at 2 when the result doesn't change the request, because Eloquent
+skips an update with no changes.
+
+**Not done yet:** filtering by date, provider or request; recording previews; who classified
+(there is no auth); a retention policy; history on a request's detail view; choosing the
+provider from config; and failure handling for a model-backed provider.
 
 ## Verification and remaining work
 

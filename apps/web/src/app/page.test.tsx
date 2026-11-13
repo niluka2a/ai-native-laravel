@@ -39,13 +39,15 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+let queryClient: QueryClient;
+
 function renderPage() {
   // Same defaults as providers.tsx (staleTime 10s), plus retry: false for tests.
-  const client = new QueryClient({
+  const client = (queryClient = new QueryClient({
     defaultOptions: {
       queries: { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
     },
-  });
+  }));
   return render(
     <QueryClientProvider client={client}>
       <HomePage />
@@ -156,5 +158,23 @@ describe('HomePage row actions', () => {
     await waitFor(() => expect(controls().every((el) => el.disabled)).toBe(true));
     classifyPending.resolve({ category: 'billing', confidence: 0.86, requestId: 'req-2' });
     await waitFor(() => expect(controls().every((el) => !el.disabled)).toBe(true));
+  });
+
+  it('invalidates the history queries after a classify', async () => {
+    mocked.fetchRequests.mockResolvedValue([makeRow()]);
+    mocked.classifyMessage.mockResolvedValue({
+      category: 'billing',
+      confidence: 0.86,
+      requestId: 'req-1',
+    });
+
+    renderPage();
+    await waitFor(() => expect(statusSelect().value).toBe('open'));
+    const spy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Classify' }));
+
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ['history'] }));
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'] });
   });
 });
