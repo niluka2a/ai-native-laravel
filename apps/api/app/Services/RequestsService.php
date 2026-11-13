@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\CustomerRequest;
-use App\Models\RequestNote;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RequestsService
@@ -15,12 +14,7 @@ class RequestsService
     {
         $rows = CustomerRequest::query()
             ->withCount('notes')
-            ->addSelect(['latest_note_preview' => RequestNote::query()
-                ->select('body')
-                ->whereColumn('request_notes.request_id', 'customer_requests.id')
-                ->orderByDesc('request_notes.created_at')
-                ->orderByDesc('request_notes.id')
-                ->limit(1)])
+            ->with('latestNote')
             ->orderByDesc('customer_requests.created_at')
             ->get();
 
@@ -33,7 +27,7 @@ class RequestsService
                 'category' => $row->category,
                 'confidence' => $row->confidence,
                 'noteCount' => (int) $row->notes_count,
-                'latestNotePreview' => $row->latest_note_preview,
+                'latestNotePreview' => $row->latestNote?->body,
                 'createdAt' => $row->created_at->toISOString(),
                 'updatedAt' => $row->updated_at->toISOString(),
             ];

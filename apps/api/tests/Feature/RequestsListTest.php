@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CustomerRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -121,5 +122,18 @@ class RequestsListTest extends TestCase
 
         $this->assertSame($small, $large);
         $this->assertLessThanOrEqual(3, $large);
+        $this->assertSame(2, $large);
+    }
+
+    public function test_latest_note_relation_returns_newest_note(): void
+    {
+        $a = '00000000-0000-4000-8000-00000000000d';
+        $this->makeRequest($a, $this->at(0));
+        $this->makeNote('00000000-0000-4000-8000-000000000201', $a, 'oldest', $this->at(0));
+        $this->makeNote('00000000-0000-4000-8000-000000000203', $a, 'newest', $this->at(9));
+        $this->makeNote('00000000-0000-4000-8000-000000000202', $a, 'tie lower id', $this->at(9));
+        $this->makeNote('00000000-0000-4000-8000-000000000204', $a, 'middle', $this->at(4));
+
+        $this->assertSame('newest', CustomerRequest::find($a)->latestNote->body);
     }
 }

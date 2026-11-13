@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property string $id
@@ -31,5 +32,10 @@ class CustomerRequest extends Model
     public function notes(): HasMany
     {
         return $this->hasMany(RequestNote::class, 'request_id');
+    }
+
+    public function latestNote(): HasOne
+    {
+        return $this->hasOne(RequestNote::class, 'request_id')->latestOfMany('created_at');
     }
 }

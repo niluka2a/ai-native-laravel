@@ -9,13 +9,17 @@ largest measurable cost and it grows linearly with the data: 1,201 queries per c
 seeded data (1,200 requests, 4,800 notes), and every note row was loaded just to count it and
 read one body.
 
-- **Approach:** one query in `RequestsService::list()`: `withCount('notes')` plus a correlated
-  subquery (`addSelect`) for the latest note body. I did not use `hasOne()->latestOfMany()`
-  with eager loading: it needs 2 queries, a new relation, a `WHERE request_id IN (...)` list of
-  every id that grows with N (placeholder limit around 65k), and builds derived tables with a
-  filesort. The subquery has no bindings and uses the existing FK index.
-- **Tie-break (deliberate change):** the latest note is chosen by `created_at DESC, id DESC`.
-  Before, ties on `created_at` had an undefined order. Ids are random UUIDs, so the rule is
+- **Approach:** `RequestsService::list()` uses `withCount('notes')` plus the eager-loaded
+  `CustomerRequest::latestNote()` relation (`hasOne(...)->latestOfMany('created_at')`): 2
+  queries, constant. I chose it over a hand-written correlated subquery (Revision 1, a single
+  query) because it is idiomatic Eloquent, reusable, and follows the rule to prefer the
+  framework's built-in way. Trade-offs I accepted: one more query, the eager load binds every
+  request id (placeholder limit around 65k requests; the endpoint is unpaginated anyway), and
+  the generated SQL uses derived tables.
+- **Tie-break (deliberate change):** the latest note is chosen by `created_at DESC, id DESC`:
+  `latestOfMany('created_at')` adds `MAX(id)` as the last aggregate, and MariaDB's native `UUID`
+  type orders `MAX` the same way as `ORDER BY id DESC` (0 mismatches over the 1,200 dev
+  requests). Before, ties on `created_at` had an undefined order. Ids are random UUIDs, so the rule is
   deterministic but not necessarily chronological. The seed data has no ties, so output is
   unchanged.
 - **No index:** I did not add `(request_id, created_at)` on `request_notes`. The FK index
@@ -37,8 +41,8 @@ and what you would tackle next.
 
 | | Before | After |
 | --- | --- | --- |
-| Queries per `GET /requests` | 1,201 | 1 |
-| Wall time (curl, 5 runs) | 0.32 to 0.37 s | 0.058 to 0.072 s |
+| Queries per `GET /requests` | 1,201 | 2 |
+| Wall time (curl, 5 runs) | 0.32 to 0.37 s | 0.075 to 0.091 s |
 | Response SHA-256 prefix | `850c2e52329fcf59` | `850c2e52329fcf59` (byte-identical) |
 
 `tests/Feature/RequestsListTest.php` covers counts, latest preview, the empty case, ordering and
