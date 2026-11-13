@@ -26,6 +26,13 @@ docker compose logs -f api                  # shows SQL queries
 - Run the tests and the typecheck before you say something works. Report real results.
 - Don't add paid AI services or API keys. The keyword classifier must keep working locally.
 - Record decisions in `DECISIONS.md` and AI checkpoints in `AI_USAGE.md`.
+- Follow framework best practices: idiomatic Laravel (Eloquent relationships, scopes, eager
+  loading) and idiomatic Next.js/React. Prefer the framework's built-in way over hand-written SQL
+  or custom plumbing.
+- PHP follows PSR standards: PSR-12 / PER coding style (Laravel Pint preset) and PSR-4
+  autoloading. Check the PHP files you changed (paths relative to `apps/api`) with
+  `docker compose exec api ./vendor/bin/pint --test <files>`. `--dirty` doesn't work because
+  the api container has no git. Don't reformat files you aren't otherwise changing.
 
 ## Workflow
 

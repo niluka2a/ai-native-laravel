@@ -85,8 +85,6 @@ jobs:
 
       - name: Migrate
         working-directory: apps/api
-        env:
-          DB_DATABASE: request_desk_app
         run: php artisan migrate --force
 
       - name: Build
