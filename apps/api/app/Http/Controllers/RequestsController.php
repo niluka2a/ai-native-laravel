@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ClassifyRequest;
+use App\Http\Requests\HistoryRequest;
+use App\Http\Resources\ClassificationHistoryResource;
 use App\Services\ClassificationService;
 use App\Services\RequestsService;
 use Illuminate\Http\Request;
@@ -12,20 +14,18 @@ class RequestsController extends Controller
     public function __construct(
         private readonly RequestsService $requestsService,
         private readonly ClassificationService $classification,
-    ) {
-    }
+    ) {}
 
     public function list()
     {
         return $this->requestsService->list();
     }
 
-    public function history(Request $request)
+    public function history(HistoryRequest $request)
     {
-        return [
-            'items' => [],
-            'message' => 'Classification history is not implemented yet.',
-        ];
+        return ClassificationHistoryResource::collection(
+            $this->classification->history($request->category()),
+        );
     }
 
     public function show(string $id)

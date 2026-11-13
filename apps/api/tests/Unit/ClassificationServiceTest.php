@@ -2,10 +2,10 @@
 
 namespace Tests\Unit;
 
+use App\Contracts\ClassifierProvider;
 use App\Data\ClassificationResult;
 use App\Enums\Category;
 use App\Services\ClassificationService;
-use App\Services\KeywordClassifier;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -20,7 +20,7 @@ class ClassificationServiceTest extends TestCase
 
     private function serviceReturning(Category $category, float $confidence): ClassificationService
     {
-        $classifier = Mockery::mock(KeywordClassifier::class);
+        $classifier = Mockery::mock(ClassifierProvider::class);
         $classifier->shouldReceive('classify')->andReturn(new ClassificationResult($category, $confidence));
 
         return new ClassificationService($classifier);

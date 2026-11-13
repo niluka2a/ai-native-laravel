@@ -2,12 +2,21 @@
 
 namespace Tests\Unit;
 
+use App\Contracts\ClassifierProvider;
 use App\Enums\Category;
 use App\Services\KeywordClassifier;
 use PHPUnit\Framework\TestCase;
 
 class KeywordClassifierTest extends TestCase
 {
+    public function test_is_a_classifier_provider_named_keyword(): void
+    {
+        $classifier = new KeywordClassifier;
+
+        $this->assertInstanceOf(ClassifierProvider::class, $classifier);
+        $this->assertSame('keyword', $classifier->name());
+    }
+
     public function test_classifies_billing_messages(): void
     {
         $result = (new KeywordClassifier)->classify('Please fix my invoice and payment charge');

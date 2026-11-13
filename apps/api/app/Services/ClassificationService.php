@@ -2,9 +2,13 @@
 
 namespace App\Services;
 
+use App\Contracts\ClassifierProvider;
 use App\Data\ClassificationResult;
 use App\Enums\Category;
 use App\Models\CustomerRequest;
+use App\Models\RequestClassification;
+use Illuminate\Contracts\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 
 class ClassificationService
 {
@@ -18,7 +22,7 @@ class ClassificationService
     /** Results below this confidence fall back to "unknown". */
     private const UNKNOWN_THRESHOLD = 0.55;
 
-    public function __construct(private readonly KeywordClassifier $classifier) {}
+    public function __construct(private readonly ClassifierProvider $classifier) {}
 
     /**
      * Classify a message and apply the confidence policy. Pure, no DB access.
@@ -49,18 +53,41 @@ class ClassificationService
     }
 
     /**
-     * Classify a message and, when a request id is given, store the result on that request.
+     * Classify a message and, when a request id is given, store the result on that request
+     * and append it to the history, in one transaction.
      */
     public function classifyAndStore(string $message, ?string $requestId): ClassificationResult
     {
         $result = $this->classify($message);
 
         if ($requestId !== null) {
-            $request = CustomerRequest::query()->findOrFail($requestId);
-            $request->applyClassification($result);
-            $request->save();
+            DB::transaction(function () use ($requestId, $result) {
+                $request = CustomerRequest::query()->findOrFail($requestId);
+                $request->applyClassification($result);
+                $request->save();
+
+                $request->classifications()->create([
+                    'category' => $result->category,
+                    'confidence' => $result->confidence,
+                    'provider' => $this->classifier->name(),
+                ]);
+            });
         }
 
         return $result;
+    }
+
+    /**
+     * Stored classifications, newest first, optionally limited to one category.
+     */
+    public function history(?Category $category, int $perPage = 50): Paginator
+    {
+        return RequestClassification::query()
+            ->with('request:id,message,status')
+            ->ofCategory($category)
+            ->latest()
+            ->orderByDesc('id')
+            ->simplePaginate($perPage)
+            ->withQueryString();
     }
 }

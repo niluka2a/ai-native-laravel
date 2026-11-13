@@ -2,15 +2,21 @@
 
 namespace App\Services;
 
+use App\Contracts\ClassifierProvider;
 use App\Data\ClassificationResult;
 use App\Enums\Category;
 
 /**
- * Deterministic keyword classifier. Candidates may introduce a provider
- * interface and swap implementations (including a future LLM provider).
+ * Deterministic keyword classifier. The local default ClassifierProvider; a
+ * future LLM provider can replace it through the container binding.
  */
-class KeywordClassifier
+class KeywordClassifier implements ClassifierProvider
 {
+    public function name(): string
+    {
+        return 'keyword';
+    }
+
     public function classify(string $message): ClassificationResult
     {
         $text = mb_strtolower($message);

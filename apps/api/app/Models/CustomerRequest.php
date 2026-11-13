@@ -35,6 +35,11 @@ class CustomerRequest extends Model
         return $this->hasMany(RequestNote::class, 'request_id');
     }
 
+    public function classifications(): HasMany
+    {
+        return $this->hasMany(RequestClassification::class, 'request_id');
+    }
+
     public function latestNote(): HasOne
     {
         return $this->hasOne(RequestNote::class, 'request_id')->latestOfMany('created_at');
