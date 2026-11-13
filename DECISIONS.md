@@ -27,6 +27,39 @@ read one body.
   total, which does not justify a migration. Revisit if notes per request grow a lot.
 - **Out of scope:** pagination and response-shape changes (the frontend reads the whole array).
 
+**Task 2: UI freshness (status change and classify).** The API saved both actions correctly,
+but the table on `/` kept the old values because only `createMutation` invalidated the
+`['requests']` query (`staleTime` is 10 s, no refetch on focus), and the status `<select>` is
+controlled by the cached row, so it snapped back.
+
+- **Approach:** both mutations call `invalidateQueries` in `onSettled` and return the promise,
+  so the table is refetched after success and after failure and always shows what the server
+  stored. The server stays the source of truth.
+- **Pending value in the UI, not in the cache (Revision 2):** the status `<select>` shows
+  `statusMutation.variables.status` while that row's mutation is pending (TanStack Query v5
+  "optimistic UI via variables"), otherwise the cached `row.status`. There is no `onMutate` or
+  rollback code: the query cache is never edited, and the refetch in `onSettled` decides what
+  is shown. On failure the select keeps the attempted value, disabled, until the refetch lands
+  (tens of ms), then shows the server's value. Revision 1 patched the cache and rolled back;
+  I replaced it because it was more code and let overlapping actions flicker.
+- **All row controls are disabled while any action is pending:** `isBusy` is
+  `statusMutation.isPending || classifyMutation.isPending`, and `isPending` lasts until the
+  refetch arrives (the `onSettled` promise is returned). Only one action is in flight at a time,
+  which prevents conflicting edits. Per-row disabling would need `useMutationState`, which I
+  left out. Classify is still not optimistic: category, confidence and the `open` to
+  `in_progress` rule belong to the server.
+- **Response payloads are not written into the cache:** `PATCH /requests/{id}/status` returns
+  the raw snake_case model and `POST /requests/classify` returns only
+  `{category, confidence, requestId}`, neither matches `RequestListItem`. So
+  `updateRequestStatus` is typed `Promise<unknown>` (the UI never reads it) and
+  `classifyMessage` gets a real `ClassifyResult` type.
+- **Test runner:** added Vitest + React Testing Library + jsdom as dev dependencies (free,
+  local) with `npm test` and a `Web tests` CI step, so the behaviour is covered by tests that
+  fail on the old code. Cost: a few dev dependencies and a slightly longer CI run.
+- **Accepted trade-offs:** each action refetches the whole list (2 queries, about 50 ms, 1,200
+  rows); revisit with pagination. The API still answers some errors with 200 + `{error}`; the
+  refetch makes the UI self-correct, and the proper fix is task 4.
+
 ## Classification history
 
 What is the smallest useful release? Describe what you would store, when you would write it,
