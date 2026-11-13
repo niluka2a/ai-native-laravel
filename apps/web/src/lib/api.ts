@@ -45,7 +45,7 @@ export async function createRequest(message: string): Promise<CreatedRequest> {
 export async function updateRequestStatus(
   id: string,
   status: RequestStatus,
-): Promise<RequestListItem> {
+): Promise<unknown> {
   const res = await fetch(`${API_URL}/requests/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,16 @@ export async function updateRequestStatus(
   return res.json();
 }
 
-export async function classifyMessage(message: string, requestId?: string) {
+export type ClassifyResult = {
+  category: string;
+  confidence: number;
+  requestId: string | null;
+};
+
+export async function classifyMessage(
+  message: string,
+  requestId?: string,
+): Promise<ClassifyResult> {
   const res = await fetch(`${API_URL}/requests/classify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
