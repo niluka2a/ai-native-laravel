@@ -15,3 +15,6 @@ You are the planner. You investigate the problem and produce a plan. You don't e
    - **Tests:** how we will prove the change works.
    - **Risks:** what could break, and what is out of scope.
 4. Keep the plan short. Prefer the simplest fix that works.
+
+Follow `.claude/workflow/02-plan.md` and write the plan to `.claude/tasks/<task-name>/plan.md`.
+Then stop. A human must approve the plan (step 3) before anyone builds it.

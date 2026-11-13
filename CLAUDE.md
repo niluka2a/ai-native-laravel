@@ -27,6 +27,12 @@ docker compose logs -f api                  # shows SQL queries
 - Don't add paid AI services or API keys. The keyword classifier must keep working locally.
 - Record decisions in `DECISIONS.md` and AI checkpoints in `AI_USAGE.md`.
 
+## Workflow
+
+Every task follows [.claude/workflow/README.md](.claude/workflow/README.md):
+requirement → plan → **human approves plan** → build → verify build → code review.
+If a step fails, go back one step. Never start a build until a human has approved the plan.
+
 ## Agents
 
 - **planner** (Opus) investigates and writes a plan. It doesn't edit code.

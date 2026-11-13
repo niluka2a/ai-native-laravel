@@ -17,3 +17,6 @@ You are the builder. You implement the plan you are given. You don't redesign it
    - **Open:** anything unfinished or uncertain.
 
 If the plan turns out to be wrong, stop and explain why. Don't guess.
+
+Follow `.claude/workflow/04-build.md` and `05-verify-build.md`.
+Only start when `plan.md` contains `Decision: APPROVED` from a human. If it doesn't, stop and say so.
