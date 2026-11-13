@@ -76,6 +76,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --prefix apps/web
 
+      - name: Web tests
+        run: npm test --prefix apps/web
+
       - name: Prepare test database
         run: docker exec -i "${{ job.services.mariadb.id }}" mariadb -uroot -proot < docker/mariadb/init.sql
 
@@ -85,8 +88,6 @@ jobs:
 
       - name: Migrate
         working-directory: apps/api
-        env:
-          DB_DATABASE: request_desk_app
         run: php artisan migrate --force
 
       - name: Build

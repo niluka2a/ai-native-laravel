@@ -11,20 +11,21 @@ import {
 } from '@/lib/api';
 
 const STATUSES: RequestStatus[] = ['open', 'in_progress', 'resolved'];
+const REQUESTS_KEY = ['requests'] as const;
 
 export default function HomePage() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
 
   const requestsQuery = useQuery({
-    queryKey: ['requests'],
+    queryKey: REQUESTS_KEY,
     queryFn: fetchRequests,
   });
 
   const createMutation = useMutation({
     mutationFn: (message: string) => createRequest(message),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: REQUESTS_KEY });
       setDraft('');
     },
   });
@@ -32,12 +33,23 @@ export default function HomePage() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: RequestStatus }) =>
       updateRequestStatus(id, status),
+    // Refetch so the table shows what the server stored; isPending lasts until it arrives.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: REQUESTS_KEY }),
   });
 
   const classifyMutation = useMutation({
     mutationFn: ({ id, message }: { id: string; message: string }) =>
       classifyMessage(message, id),
+    // The server sets category, confidence and open -> in_progress, and appends a history row.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: REQUESTS_KEY }),
+        queryClient.invalidateQueries({ queryKey: ['history'] }),
+      ]),
   });
+
+  // One row action at a time: controls stay disabled until the action and the refetch settle.
+  const isBusy = statusMutation.isPending || classifyMutation.isPending;
 
   if (requestsQuery.isLoading) {
     return <p className="text-slate-600">Loading requests…</p>;
@@ -113,8 +125,13 @@ export default function HomePage() {
                 </td>
                 <td className="px-4 py-3">
                   <select
-                    className="rounded border border-slate-300 bg-white px-2 py-1"
-                    value={row.status}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 disabled:opacity-50"
+                    value={
+                      statusMutation.isPending && statusMutation.variables.id === row.id
+                        ? statusMutation.variables.status
+                        : row.status
+                    }
+                    disabled={isBusy}
                     onChange={(e) =>
                       statusMutation.mutate({
                         id: row.id,
@@ -141,7 +158,8 @@ export default function HomePage() {
                 <td className="px-4 py-3">
                   <button
                     type="button"
-                    className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+                    className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                    disabled={isBusy}
                     onClick={() =>
                       classifyMutation.mutate({ id: row.id, message: row.message })
                     }

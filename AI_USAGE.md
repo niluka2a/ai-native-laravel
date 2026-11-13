@@ -1,13 +1,34 @@
 # AI usage
 
-List the tools you used and what you used them for. Add two brief checkpoints as you work.
-Use a short excerpt or paraphrase of the instruction you gave. Point to a reproducible check
-and record what happened when you ran it.
+## Tools
+
+- **Claude Code** (VS Code extension) for most of the work, with two project agents defined in
+  `.claude/agents/`: a **planner** (Claude Opus) that investigates and writes a plan without
+  editing code, and a **builder** (Claude Sonnet) that implements an approved plan and runs the
+  tests. I also used Claude Code directly for reviews and follow-up checks.
+- The workflow is in `.claude/workflow/README.md`: requirement, plan, human approves the plan,
+  build, verify, code review. Each task's requirement, plan and build notes are in
+  `.claude/tasks/`.
+- No paid AI services or API keys in the app. The keyword classifier still runs locally.
+
+## Main decision checkpoints
+
+These two are in working order. Checkpoint 3 shows a proposal I changed after review.
+Checkpoint 4 shows a check I ran instead of trusting a green CI run.
 
 | Checkpoint | What I delegated and the constraint I set | What AI proposed | My check and what it showed | My decision and why |
 | --- | --- | --- | --- | --- |
-| 1 | | | | |
-| 2 | | | | |
+| 3 | I asked the planner to diagnose why the table does not update after a status change or classify, with the constraints "no API changes, free tools only, tests must fail on the current code". A builder agent implemented the approved plan. | Invalidate `['requests']` in `onSettled` for both mutations, an optimistic update for status only (with rollback), real types for the two responses, and Vitest + React Testing Library + jsdom with a CI step. | `docker compose exec web npm test` failed 3 of 3 on the old `page.tsx` and passed 3 of 3 after the change. `npm run typecheck`: no errors; `php artisan test`: 8 passed; `next build` succeeded in a copy of the app. curl: PATCH then `GET /requests` shows the new status; classify moves `open` to `in_progress`. Details in `.claude/tasks/02-ui-freshness/build.md`. | I approved both recommended options: the test runner (so the fix is covered by tests) and optimistic status only (server rules stay on the server). After review I asked for simpler code and disabled inputs while pending, so Revision 2 replaced the cache edit and rollback with the `variables` pattern plus `disabled` controls (4 tests, the new one red on Revision 1; see Revision 2 in `build.md`). |
+| 4 | After the migrate fix turned CI green, I asked Claude to check whether anything about Task 3 was still open, by reproducing CI on a clean checkout rather than trusting the green run. | It found the API tests ran against `request_desk` (not `request_desk_test`) whenever `DB_DATABASE` is a real env var, as in CI. It proposed `<server>` instead of `<env>` in `phpunit.xml` and a guard test. | Fresh clone, fresh `mariadb:11.4`, CI env vars: the guard test failed before the fix (tables landed in `request_desk`) and passed after (9 passed, tables only in `request_desk_test`); `Migrate` then really ran `initial_schema`. Local: `php artisan test` 9 passed, Pint clean, typecheck clean, dev DB still has 1,200 rows. | I approved the one-line config fix over removing CI env vars, because it protects anyone who exports `DB_DATABASE`, not just CI. I chose to document the no-op Lint step rather than add ESLint in this task. |
 
-You can link to a file, commit, test, or command output. Leave out secrets, personal data,
-and full chat logs.
+## Other checkpoints
+
+The remaining checkpoints, kept for reference in working order. Numbers match the build notes in
+`.claude/tasks/`.
+
+| Checkpoint | What I delegated and the constraint I set | What AI proposed | My check and what it showed | My decision and why |
+| --- | --- | --- | --- | --- |
+| 1 | I delegated planning of the `GET /requests` N+1 fix to the planner agent, with the constraint "at most 3 queries, byte-identical response, no paid AI". A builder agent implemented the approved plan. | `withCount('notes')` plus a correlated subquery for the latest note body (1 query, no index), with an explicit `created_at DESC, id DESC` tie-break. | Before/after on the seeded data: queries 1,201 to 1, time 0.32-0.37 s to about 0.06 s, response SHA-256 identical (`850c2e52329fcf59...`, 1,200 items). `php artisan test`: 7 passed, including `tests/Feature/RequestsListTest.php`. `npm run typecheck`: no errors. Details in `.claude/tasks/01-list-performance/build.md`. | I approved the plan after reading it. I accepted the single-query approach and no index because the measured gain from an index is under 1 ms, and I accepted the documented tie-break since the old order was undefined. |
+| 2 | I asked the planner to replace the hand-written subquery with an Eloquent relationship (idiomatic Laravel) after the human added a CLAUDE.md rule on framework best practices and PSR style. | `latestNote()` as `hasOne()->latestOfMany('created_at')`, eager loaded with `withCount('notes')`, no column constraint; the planner verified the tie-break (`MAX(id)` equals `ORDER BY id DESC` on MariaDB's UUID type). | Same seeded data: queries 1,201 to 2, time about 0.075 to 0.091 s, SHA-256 identical to baseline (`850c2e52329fcf59...`, 1,200 items). `php artisan test`: 8 passed; `npm run typecheck`: no errors; Pint clean on the 3 changed PHP files. Details in `.claude/tasks/01-list-performance/build.md`. | I approved Revision 2 and accepted 2 queries instead of 1 in return for idiomatic, reusable code. |
+| 5 | I asked the planner to restructure `POST /requests/classify` (validation, policy and persistence were all in the controller) with the constraints "behaviour preserved, characterisation tests first, no paid AI". A builder agent implemented the approved plan. | A FormRequest, a `ClassificationService` for the policy, `CustomerRequest::applyClassification()`, a typed `ClassificationResult` with a `Category` enum, and `shouldRenderJsonWhen` so validation errors are 422 JSON for clients that send no `Accept` header. | Characterisation tests (16) were written first and passed on the unchanged code; after the refactor `php artisan test` showed 43 passed. Live curl: `{}` gives 422 JSON, `"0"` gives 200 unknown 0.4, an array `requestId` gives 422 (was 500). Classify with `requestId` runs 2 queries (was 3). Details in `.claude/tasks/04-classification-structure/build.md`. | I approved the plan with 422 for validation errors, no enum cast on the model, and the provider interface deferred to task 5, because the cast could break `GET /requests` on odd rows and the interface belongs with the history work. |
+| 6 | I asked the planner to add classification history (README task 5) with the constraints "smallest useful release, no paid AI, keyword classifier stays the local default". A builder agent implemented the approved plan. | An append-only `request_classifications` table written in the same transaction as the request update, `GET /requests/history?category=` validated by a FormRequest and served as a paginated API Resource, a `ClassifierProvider` interface bound in the container, and a rewritten `/history` page that classify on `/` refreshes. | `php artisan test`: 55 passed (new `ClassificationHistoryTest`, with a fake provider and a constant 2-query history endpoint). `npm test`: 10 passed; `npm run typecheck`: no errors. curl: classify with `requestId` adds history rows, `?category=billing` filters, `?category=nope` gives 422. Details in `.claude/tasks/05-classification-history/build.md`. | I approved the plan with: no rows for classify without `requestId`, `simplePaginate(50)` with Previous/Next, and 3 queries instead of 2 on classify. I asked for no fake seeded history (the empty state points staff to `/`) and for this checkpoint to be recorded. |

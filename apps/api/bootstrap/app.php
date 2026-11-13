@@ -16,5 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // API-only app: always answer errors (including failed validation) as JSON,
+        // even when the client sends no Accept: application/json header.
+        $exceptions->shouldRenderJsonWhen(fn () => true);
     })->create();

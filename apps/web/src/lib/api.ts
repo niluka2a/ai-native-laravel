@@ -45,7 +45,7 @@ export async function createRequest(message: string): Promise<CreatedRequest> {
 export async function updateRequestStatus(
   id: string,
   status: RequestStatus,
-): Promise<RequestListItem> {
+): Promise<unknown> {
   const res = await fetch(`${API_URL}/requests/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,19 @@ export async function updateRequestStatus(
   return res.json();
 }
 
-export async function classifyMessage(message: string, requestId?: string) {
+export const CATEGORIES = ['support', 'sales', 'billing', 'unknown'] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+export type ClassifyResult = {
+  category: Category;
+  confidence: number;
+  requestId: string | null;
+};
+
+export async function classifyMessage(
+  message: string,
+  requestId?: string,
+): Promise<ClassifyResult> {
   const res = await fetch(`${API_URL}/requests/classify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -69,9 +81,34 @@ export async function classifyMessage(message: string, requestId?: string) {
   return res.json();
 }
 
-export async function fetchHistory(category?: string) {
-  const qs = category ? `?category=${encodeURIComponent(category)}` : '';
-  const res = await fetch(`${API_URL}/requests/history${qs}`);
+export type HistoryItem = {
+  id: number;
+  requestId: string;
+  requestMessage: string;
+  requestStatus: RequestStatus;
+  category: Category;
+  confidence: number;
+  provider: string;
+  createdAt: string;
+};
+
+export type HistoryPage = {
+  data: HistoryItem[];
+  links: { first: string | null; last: string | null; prev: string | null; next: string | null };
+  meta: { current_page: number; from: number | null; to: number | null; per_page: number; path: string };
+};
+
+export async function fetchHistory({
+  category,
+  page = 1,
+}: {
+  category?: Category;
+  page?: number;
+} = {}): Promise<HistoryPage> {
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  params.set('page', String(page));
+  const res = await fetch(`${API_URL}/requests/history?${params}`);
   if (!res.ok) {
     throw new Error(`Failed to load history (${res.status})`);
   }
