@@ -87,3 +87,29 @@ creates or grants, so it failed with `1044 Access denied`. I removed the overrid
 against `request_desk`, which the MariaDB service creates and grants and which `.env.example` and
 docker-compose already use. I did not add `request_desk_app` to `init.sql`, because nothing else
 uses that database.
+
+**CI test database fix:** with the migrate fix, CI went green but the API tests ran against
+`request_desk`, not `request_desk_test`. The job-level `env:` sets `DB_DATABASE=request_desk` as a
+real environment variable, Laravel reads `$_SERVER` first, and phpunit's `<env force="true">` does
+not set `$_SERVER`, so the real variable won. As a result `RefreshDatabase` wiped the app database,
+the "Prepare test database" step was unused, and `Migrate` only printed "Nothing to migrate"
+because the tests had already migrated it. I changed that line in `phpunit.xml` to
+`<server ... force="true">` and added `tests/Feature/TestDatabaseTest.php`, which asserts the
+connection uses `request_desk_test`. I kept the CI env block, so the workflow is unchanged.
+
+**Task 3 verification (clean checkout, reproduced locally):** I could not run GitHub Actions from
+here (no `gh` CLI), so I reproduced each step on a fresh `git clone` (no `node_modules`, no
+`.next`): `node:22` for the web steps, the api image (PHP 8.3) for the API steps, and a new
+`mariadb:11.4` container configured like the CI service, with the job's `DB_*` values set as
+process env.
+
+| Step | Result |
+| --- | --- |
+| Check submission artifacts, install, prepare environment | pass |
+| Lint | exits 0 but runs nothing: `apps/web` has no `lint` script or ESLint config, so `--if-present` skips it (true since the original repo) |
+| Typecheck, Web tests (4), Build | pass |
+| Prepare test database, Test | pass: 9 tests, tables created in `request_desk_test` only. Before the fix, the new test failed and tables landed in `request_desk` |
+| Migrate | runs `initial_schema` on the empty `request_desk`. The old `request_desk_app` override reproduces `1044 Access denied` |
+
+Not verified: the run on GitHub's `ubuntu-latest` runner itself (service networking,
+`setup-php`, npm cache). Next: add ESLint so the Lint step actually checks something.
