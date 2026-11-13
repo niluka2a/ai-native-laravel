@@ -58,7 +58,7 @@ export async function updateRequestStatus(
 }
 
 export type ClassifyResult = {
-  category: string;
+  category: 'support' | 'sales' | 'billing' | 'unknown';
   confidence: number;
   requestId: string | null;
 };

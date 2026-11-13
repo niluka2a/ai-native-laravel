@@ -57,8 +57,44 @@ controlled by the cached row, so it snapped back.
   local) with `npm test` and a `Web tests` CI step, so the behaviour is covered by tests that
   fail on the old code. Cost: a few dev dependencies and a slightly longer CI run.
 - **Accepted trade-offs:** each action refetches the whole list (2 queries, about 50 ms, 1,200
-  rows); revisit with pagination. The API still answers some errors with 200 + `{error}`; the
-  refetch makes the UI self-correct, and the proper fix is task 4.
+  rows); revisit with pagination. The API still answered some errors with 200 + `{error}`; the
+  refetch makes the UI self-correct. Task 4 fixed this for `classify` (422); `store` and
+  `updateStatus` still do it.
+
+## Task 4: classification structure
+
+`RequestsController::classify` mixed validation, classification policy and persistence. Each now
+has its usual home:
+
+- `ClassifyRequest` (FormRequest): `message` is `required|string|max:2000`, `requestId` is
+  `nullable|uuid`. Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware
+  already trim input, so the old `trim()` calls were redundant.
+- `ClassificationService`: the softening and unknown-threshold rules, as named constants.
+  `classify()` is pure; `classifyAndStore()` also stores the result when a `requestId` is given.
+- `CustomerRequest::applyClassification()`: sets category and confidence and moves `open` to
+  `in_progress`.
+- `KeywordClassifier` returns a `ClassificationResult` value object with a backed `Category`
+  enum. Regexes and confidences are unchanged.
+- `bootstrap/app.php`: `shouldRenderJsonWhen(fn () => true)`. Without it a failed FormRequest
+  redirects (302), because the web client sends no `Accept: application/json` header. The app
+  is API-only, so all errors being JSON is intended.
+
+Decisions the human confirmed: validation errors become 422 (the frontend already throws on
+`!res.ok`); no enum cast on `CustomerRequest::category` (a row outside the enum would throw on
+read and break `GET /requests`); the provider interface is left for task 5, so tests stub the
+concrete `KeywordClassifier`.
+
+| Input | Before | After |
+|---|---|---|
+| invalid or missing message, > 2000 chars | 200 `{error}` | 422 `{message, errors}` |
+| `"0"` | 200 `{error}` | 200 unknown 0.4 |
+| `requestId` malformed | 404 | 422 |
+| `requestId` array | 500 | 422 |
+| 404 body text | `Request X not found` | Laravel's default model-not-found message |
+| queries with `requestId` | 3 | 2 |
+
+Success responses are unchanged (`{category, confidence, requestId}`), and characterisation
+tests written against the old code pass on both versions.
 
 ## Classification history
 
