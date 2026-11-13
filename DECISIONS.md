@@ -134,7 +134,47 @@ skips an update with no changes.
 
 **Not done yet:** filtering by date, provider or request; recording previews; who classified
 (there is no auth); a retention policy; history on a request's detail view; choosing the
-provider from config; and failure handling for a model-backed provider.
+provider from config; and building a model-backed provider (the plan is below).
+
+## Future model-backed classifier
+
+This is a plan only. Nothing here is built yet.
+
+**Deployment order**
+
+1. Database first. Any new history columns, such as the model version or response time, are
+   added as nullable, so the current code keeps working.
+2. Ship the model provider switched off. `KeywordClassifier` stays the default binding, and a
+   config value chooses the provider.
+3. Turn it on slowly. First in shadow mode, where the model runs but its answers are only logged,
+   then for a small share of requests, then for all of them. The `provider` column in the
+   history shows which one does better.
+4. Frontend last, if at all. The classify response keeps the same shape.
+
+**Failure handling**
+
+1. The keyword classifier is the backup. On a timeout, an error or an invalid answer the request
+   is classified with keywords. If the model keeps failing, a circuit breaker skips it for a few
+   minutes.
+2. The model's answer is checked. Only a known `Category` and a confidence between 0 and 1 are
+   accepted; anything else becomes `unknown`. The existing confidence rules still apply.
+3. The history stays honest. A fallback is stored with `provider = keyword`, not the model.
+4. The database never waits for the model. `classifyAndStore()` already classifies before it
+   opens the transaction, so a slow model can't hold locks.
+5. Rollback is one config change back to `keyword`. No migration rollback is needed because the
+   new columns are nullable.
+
+## Assumptions
+
+- There is no authentication, so history doesn't record who classified a request.
+- Customer messages can't be edited, so history doesn't copy the message text.
+- The frontend reads the whole `GET /requests` list, so I kept it unpaginated and kept its
+  response shape.
+- The app is API-only, so every error, including validation, is returned as JSON.
+- The seed data has no notes with the same `created_at`, so the new tie-break doesn't change
+  current output.
+- One staff action at a time on `/` is acceptable, so all row controls are disabled while an
+  action is pending.
 
 ## Verification and remaining work
 
