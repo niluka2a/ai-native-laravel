@@ -23,7 +23,8 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="mariadb"/>
-        <env name="DB_DATABASE" value="request_desk_test" force="true"/>
+        <!-- <server>, not <env>: Laravel reads $_SERVER first, so a real DB_DATABASE env var (CI job env) would otherwise win. -->
+        <server name="DB_DATABASE" value="request_desk_test" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
