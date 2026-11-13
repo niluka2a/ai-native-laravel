@@ -14,25 +14,26 @@ class RequestsService
     public function list(): array
     {
         $rows = CustomerRequest::query()
-            ->orderByDesc('created_at')
+            ->withCount('notes')
+            ->addSelect(['latest_note_preview' => RequestNote::query()
+                ->select('body')
+                ->whereColumn('request_notes.request_id', 'customer_requests.id')
+                ->orderByDesc('request_notes.created_at')
+                ->orderByDesc('request_notes.id')
+                ->limit(1)])
+            ->orderByDesc('customer_requests.created_at')
             ->get();
 
         $items = [];
         foreach ($rows as $row) {
-            $notes = RequestNote::query()
-                ->where('request_id', $row->id)
-                ->orderByDesc('created_at')
-                ->get();
-            $row->setRelation('notes', $notes);
-
             $items[] = [
                 'id' => $row->id,
                 'message' => $row->message,
                 'status' => $row->status,
                 'category' => $row->category,
                 'confidence' => $row->confidence,
-                'noteCount' => $notes->count(),
-                'latestNotePreview' => $notes->first()?->body,
+                'noteCount' => (int) $row->notes_count,
+                'latestNotePreview' => $row->latest_note_preview,
                 'createdAt' => $row->created_at->toISOString(),
                 'updatedAt' => $row->updated_at->toISOString(),
             ];
