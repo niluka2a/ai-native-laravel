@@ -59,7 +59,7 @@ controlled by the cached row, so it snapped back.
 - **Accepted trade-offs:** each action refetches the whole list (2 queries, about 50 ms, 1,200
   rows); revisit with pagination. The API still answered some errors with 200 + `{error}`; the
   refetch makes the UI self-correct. Task 4 fixed this for `classify` (422); `store` and
-  `updateStatus` still do it.
+  `updateStatus` still did it until task 6 (API resources).
 
 ## Task 4: classification structure
 
@@ -135,6 +135,49 @@ skips an update with no changes.
 **Not done yet:** filtering by date, provider or request; recording previews; who classified
 (there is no auth); a retention policy; history on a request's detail view; choosing the
 provider from config; and building a model-backed provider (the plan is below).
+
+## Task 6: API resources
+
+Every endpoint now builds its JSON with a Laravel API Resource, so the response shape is decided
+in one place for each type, not in services, controllers or Eloquent's default serialisation.
+
+**One resource for a customer request.** `CustomerRequestResource` serves list, show, store and
+status update. The note fields are conditional: `noteCount` (`whenCounted`) and
+`latestNotePreview` (`whenLoaded`) appear only on the list, and `notes` (through
+`RequestNoteResource`) only on show. The list response keeps the same keys, order and values, and
+still takes 2 queries. `classify` uses `ClassificationResource` around the `ClassificationResult`
+value object, with the same `{category, confidence, requestId}` shape as before.
+
+**No `data` wrapper.** I called `JsonResource::withoutWrapping()` in `AppServiceProvider`, so
+the existing top-level shapes of list and classify are kept and the web client didn't change.
+Paginated collections (`GET /requests/history`) are still wrapped in `data` with `links` and
+`meta`, because Laravel always wraps when pagination info is present. This applies to every
+future resource too.
+
+**Changes clients can see (approved by the human).**
+
+| Endpoint | Before | After |
+| --- | --- | --- |
+| `GET /requests/{id}`, `POST /requests`, `PATCH .../status` | raw model, snake_case, every column | camelCase, same keys as the list |
+| `POST /requests` success | 200 | 201 |
+| `POST /requests` missing or non-string `message` | 200 `{error}` | 422 `{message, errors}` |
+| `PATCH .../status` missing status | 200 `{error}` | 422 |
+| `PATCH .../status` unknown status (e.g. `done`) | 200, saved | 422, not saved |
+
+**Status enum.** Statuses are a `RequestStatus` enum (`open`, `in_progress`, `resolved`), and
+`CustomerRequest` casts `status` to it. It is used in validation (`Rule::enum`), create,
+`applyClassification()` and the seeder. `label()` gives the name staff see (`In progress`). The
+API sends both `status` (the raw value clients send back) and `statusLabel`. The status select on
+`/` shows the labels from a matching `STATUS_LABELS` map in `api.ts`, because every option needs a
+label, not just the current status. The enum and the map must stay in step, and a test on each
+side pins the three labels. The cast is safe because the dev DB holds only valid values, and
+invalid ones can no longer be written. History's `requestStatus` is unchanged (raw value, no label).
+
+`message` has no maximum length on create, because the column is `text`
+and adding a limit would change behaviour. Status update no longer eager-loads notes it doesn't
+return. The web type `CreatedRequest` didn't match the real response (it expected camelCase);
+it is now `RequestSummary`, which create and status update both return. The UI only refetches
+after these calls, so it doesn't change.
 
 ## Future model-backed classifier
 

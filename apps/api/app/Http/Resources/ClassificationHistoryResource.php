@@ -20,7 +20,7 @@ class ClassificationHistoryResource extends JsonResource
             'id' => $this->id,
             'requestId' => $this->request_id,
             'requestMessage' => $this->request->message,
-            'requestStatus' => $this->request->status,
+            'requestStatus' => $this->request->status->value,
             'category' => $this->category->value,
             'confidence' => $this->confidence,
             'provider' => $this->provider,

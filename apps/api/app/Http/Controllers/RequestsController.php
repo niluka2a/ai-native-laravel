@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClassifyRequest;
 use App\Http\Requests\HistoryRequest;
+use App\Http\Requests\StoreCustomerRequest;
+use App\Http\Requests\UpdateStatusRequest;
 use App\Http\Resources\ClassificationHistoryResource;
+use App\Http\Resources\ClassificationResource;
+use App\Http\Resources\CustomerRequestResource;
 use App\Services\ClassificationService;
 use App\Services\RequestsService;
-use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class RequestsController extends Controller
 {
@@ -16,52 +20,40 @@ class RequestsController extends Controller
         private readonly ClassificationService $classification,
     ) {}
 
-    public function list()
+    public function list(): AnonymousResourceCollection
     {
-        return $this->requestsService->list();
+        return CustomerRequestResource::collection($this->requestsService->list());
     }
 
-    public function history(HistoryRequest $request)
+    public function history(HistoryRequest $request): AnonymousResourceCollection
     {
         return ClassificationHistoryResource::collection(
             $this->classification->history($request->category()),
         );
     }
 
-    public function show(string $id)
+    public function show(string $id): CustomerRequestResource
     {
-        return $this->requestsService->getById($id);
+        return new CustomerRequestResource($this->requestsService->getById($id));
     }
 
-    public function store(Request $request)
+    public function store(StoreCustomerRequest $request): CustomerRequestResource
     {
-        $message = $request->input('message');
-        if (! $message || ! is_string($message)) {
-            return ['error' => 'message is required'];
-        }
-
-        return $this->requestsService->create($message);
+        return new CustomerRequestResource($this->requestsService->create($request->validated('message')));
     }
 
-    public function updateStatus(Request $request, string $id)
+    public function updateStatus(UpdateStatusRequest $request, string $id): CustomerRequestResource
     {
-        $status = $request->input('status');
-        if (! $status) {
-            return ['error' => 'status is required'];
-        }
-
-        return $this->requestsService->updateStatus($id, $status);
+        return new CustomerRequestResource(
+            $this->requestsService->updateStatus($id, $request->status()),
+        );
     }
 
-    public function classify(ClassifyRequest $request): array
+    public function classify(ClassifyRequest $request): ClassificationResource
     {
         $requestId = $request->validated('requestId');
         $result = $this->classification->classifyAndStore($request->validated('message'), $requestId);
 
-        return [
-            'category' => $result->category->value,
-            'confidence' => $result->confidence,
-            'requestId' => $requestId,
-        ];
+        return new ClassificationResource($result, $requestId);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\RequestStatus;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class DatabaseSeeder extends Seeder
     ];
 
     private const REQUEST_COUNT = 1200;
+
     private const INSERT_CHUNK = 500;
 
     public function run(): void
@@ -49,7 +51,7 @@ class DatabaseSeeder extends Seeder
             $requestRows[] = [
                 'id' => (string) Str::uuid(),
                 'message' => self::MESSAGES[$i % count(self::MESSAGES)].' (#'.($i + 1).')',
-                'status' => $i % 5 === 0 ? 'resolved' : ($i % 3 === 0 ? 'in_progress' : 'open'),
+                'status' => ($i % 5 === 0 ? RequestStatus::Resolved : ($i % 3 === 0 ? RequestStatus::InProgress : RequestStatus::Open))->value,
                 'created_at' => $createdAt,
                 'updated_at' => $createdAt,
             ];

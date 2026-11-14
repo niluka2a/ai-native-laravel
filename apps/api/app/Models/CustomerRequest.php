@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Data\ClassificationResult;
+use App\Enums\RequestStatus;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 /**
  * @property string $id
  * @property string $message
- * @property string $status open | in_progress | resolved
+ * @property RequestStatus $status
  * @property string|null $category
  * @property float|null $confidence
  */
@@ -26,6 +27,7 @@ class CustomerRequest extends Model
     protected function casts(): array
     {
         return [
+            'status' => RequestStatus::class,
             'confidence' => 'float',
         ];
     }
@@ -53,8 +55,8 @@ class CustomerRequest extends Model
         $this->category = $result->category->value;
         $this->confidence = $result->confidence;
 
-        if ($this->status === 'open') {
-            $this->status = 'in_progress';
+        if ($this->status === RequestStatus::Open) {
+            $this->status = RequestStatus::InProgress;
         }
     }
 }
