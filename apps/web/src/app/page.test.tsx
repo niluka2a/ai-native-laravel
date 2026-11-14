@@ -5,7 +5,8 @@ import * as api from '@/lib/api';
 import type { RequestListItem } from '@/lib/api';
 import HomePage from './page';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof api>()),
   fetchRequests: vi.fn(),
   createRequest: vi.fn(),
   updateRequestStatus: vi.fn(),
@@ -19,6 +20,7 @@ function makeRow(overrides: Partial<RequestListItem> = {}): RequestListItem {
     id: 'req-1',
     message: 'Please refund my invoice',
     status: 'open',
+    statusLabel: 'Open',
     category: null,
     confidence: null,
     noteCount: 0,
@@ -67,7 +69,7 @@ describe('HomePage row actions', () => {
   });
 
   it('shows a changed status immediately and keeps it after the refetch', async () => {
-    const pending = deferred<unknown>();
+    const pending = deferred<api.RequestSummary>();
     mocked.fetchRequests
       .mockResolvedValueOnce([makeRow()])
       .mockResolvedValue([makeRow({ status: 'in_progress' })]);
@@ -82,7 +84,7 @@ describe('HomePage row actions', () => {
     await waitFor(() => expect(statusSelect().value).toBe('in_progress'));
     expect(mocked.fetchRequests).toHaveBeenCalledTimes(1);
 
-    pending.resolve({});
+    pending.resolve(makeRow({ status: 'in_progress' }));
     await waitFor(() => expect(mocked.fetchRequests).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(statusSelect().value).toBe('in_progress'));
   });
@@ -106,6 +108,24 @@ describe('HomePage row actions', () => {
     refetch.resolve([makeRow()]);
     await waitFor(() => expect(statusSelect().disabled).toBe(false));
     expect(statusSelect().value).toBe('open');
+  });
+
+  it('shows status labels and sends the raw status value', async () => {
+    mocked.fetchRequests.mockResolvedValue([makeRow()]);
+    mocked.updateRequestStatus.mockResolvedValue(makeRow({ status: 'in_progress' }));
+
+    renderPage();
+    await waitFor(() => expect(statusSelect().value).toBe('open'));
+
+    const options = Array.from(statusSelect().options).map((o) => [o.value, o.text]);
+    expect(options).toEqual([
+      ['open', 'Open'],
+      ['in_progress', 'In progress'],
+      ['resolved', 'Resolved'],
+    ]);
+
+    fireEvent.change(statusSelect(), { target: { value: 'in_progress' } });
+    await waitFor(() => expect(mocked.updateRequestStatus).toHaveBeenCalledWith('req-1', 'in_progress'));
   });
 
   it('shows the classified category, confidence and server-set status', async () => {
@@ -133,7 +153,7 @@ describe('HomePage row actions', () => {
   it('disables every row control while an action is pending', async () => {
     const rows = [makeRow(), makeRow({ id: 'req-2', message: 'Cannot log in' })];
     const classifyPending = deferred<api.ClassifyResult>();
-    const statusPending = deferred<unknown>();
+    const statusPending = deferred<api.RequestSummary>();
     mocked.fetchRequests.mockResolvedValue(rows);
     mocked.updateRequestStatus.mockReturnValue(statusPending.promise);
     mocked.classifyMessage.mockReturnValue(classifyPending.promise);
@@ -150,7 +170,7 @@ describe('HomePage row actions', () => {
     // Status change pending.
     fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'resolved' } });
     await waitFor(() => expect(controls().every((el) => el.disabled)).toBe(true));
-    statusPending.resolve({});
+    statusPending.resolve(makeRow({ status: 'resolved' }));
     await waitFor(() => expect(controls().every((el) => !el.disabled)).toBe(true));
 
     // Classify pending.

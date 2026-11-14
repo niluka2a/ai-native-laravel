@@ -7,10 +7,11 @@ import {
   createRequest,
   fetchRequests,
   RequestStatus,
+  STATUS_LABELS,
   updateRequestStatus,
 } from '@/lib/api';
 
-const STATUSES: RequestStatus[] = ['open', 'in_progress', 'resolved'];
+const STATUSES = Object.keys(STATUS_LABELS) as RequestStatus[];
 const REQUESTS_KEY = ['requests'] as const;
 
 export default function HomePage() {
@@ -141,7 +142,7 @@ export default function HomePage() {
                   >
                     {STATUSES.map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {STATUS_LABELS[status]}
                       </option>
                     ))}
                   </select>

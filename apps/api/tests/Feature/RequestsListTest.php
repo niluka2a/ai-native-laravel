@@ -79,7 +79,7 @@ class RequestsListTest extends TestCase
 
         $this->assertSame([$new, $mid, $old], array_column($items, 'id'));
         $this->assertSame(
-            ['id', 'message', 'status', 'category', 'confidence', 'noteCount', 'latestNotePreview', 'createdAt', 'updatedAt'],
+            ['id', 'message', 'status', 'statusLabel', 'category', 'confidence', 'noteCount', 'latestNotePreview', 'createdAt', 'updatedAt'],
             array_keys($items[0])
         );
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\RequestStatus;
 use App\Models\CustomerRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -99,7 +100,7 @@ class ClassifyRequestTest extends TestCase
         $row->refresh();
         $this->assertSame('billing', $row->category);
         $this->assertSame(0.86, $row->confidence);
-        $this->assertSame('in_progress', $row->status);
+        $this->assertSame(RequestStatus::InProgress, $row->status);
     }
 
     public function test_resolved_request_keeps_its_status(): void
@@ -110,7 +111,7 @@ class ClassifyRequestTest extends TestCase
 
         $row->refresh();
         $this->assertSame('sales', $row->category);
-        $this->assertSame('resolved', $row->status);
+        $this->assertSame(RequestStatus::Resolved, $row->status);
     }
 
     public function test_unknown_result_is_saved_too(): void
@@ -122,7 +123,7 @@ class ClassifyRequestTest extends TestCase
         $row->refresh();
         $this->assertSame('unknown', $row->category);
         $this->assertSame(0.4, $row->confidence);
-        $this->assertSame('in_progress', $row->status);
+        $this->assertSame(RequestStatus::InProgress, $row->status);
     }
 
     public function test_without_request_id_nothing_is_written(): void
@@ -133,7 +134,7 @@ class ClassifyRequestTest extends TestCase
 
         $row->refresh();
         $this->assertNull($row->category);
-        $this->assertSame('open', $row->status);
+        $this->assertSame(RequestStatus::Open, $row->status);
     }
 
     public function test_unknown_request_id_is_404(): void

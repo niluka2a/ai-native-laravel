@@ -2,38 +2,25 @@
 
 namespace App\Services;
 
+use App\Enums\RequestStatus;
 use App\Models\CustomerRequest;
+use Illuminate\Database\Eloquent\Collection;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class RequestsService
 {
     /**
-     * @return array<int, array{id: string, message: string, status: string, category: string|null, confidence: float|null, noteCount: int, latestNotePreview: string|null, createdAt: string, updatedAt: string}>
+     * Requests newest first, with their note count and latest note eager loaded.
+     *
+     * @return Collection<int, CustomerRequest>
      */
-    public function list(): array
+    public function list(): Collection
     {
-        $rows = CustomerRequest::query()
+        return CustomerRequest::query()
             ->withCount('notes')
             ->with('latestNote')
             ->orderByDesc('customer_requests.created_at')
             ->get();
-
-        $items = [];
-        foreach ($rows as $row) {
-            $items[] = [
-                'id' => $row->id,
-                'message' => $row->message,
-                'status' => $row->status,
-                'category' => $row->category,
-                'confidence' => $row->confidence,
-                'noteCount' => (int) $row->notes_count,
-                'latestNotePreview' => $row->latestNote?->body,
-                'createdAt' => $row->created_at->toISOString(),
-                'updatedAt' => $row->updated_at->toISOString(),
-            ];
-        }
-
-        return $items;
     }
 
     public function getById(string $id): CustomerRequest
@@ -46,9 +33,9 @@ class RequestsService
         return $row;
     }
 
-    public function updateStatus(string $id, string $status): CustomerRequest
+    public function updateStatus(string $id, RequestStatus $status): CustomerRequest
     {
-        $row = $this->getById($id);
+        $row = CustomerRequest::query()->findOrFail($id);
         $row->status = $status;
         $row->save();
 
@@ -59,7 +46,7 @@ class RequestsService
     {
         return CustomerRequest::create([
             'message' => $message,
-            'status' => 'open',
+            'status' => RequestStatus::Open,
             'category' => null,
             'confidence' => null,
         ]);

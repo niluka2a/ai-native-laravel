@@ -2,10 +2,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export type RequestStatus = 'open' | 'in_progress' | 'resolved';
 
+/** Matches RequestStatus::label() in the API; the select needs a label for every status. */
+export const STATUS_LABELS: Record<RequestStatus, string> = {
+  open: 'Open',
+  in_progress: 'In progress',
+  resolved: 'Resolved',
+};
+
 export type RequestListItem = {
   id: string;
   message: string;
   status: RequestStatus;
+  statusLabel: string;
   category: string | null;
   confidence: number | null;
   noteCount: number;
@@ -22,15 +30,10 @@ export async function fetchRequests(): Promise<RequestListItem[]> {
   return res.json();
 }
 
-export type CreatedRequest = {
-  id: string;
-  message: string;
-  status: RequestStatus;
-  createdAt: string;
-  updatedAt: string;
-};
+/** A request as returned by create and status update (no note fields). */
+export type RequestSummary = Omit<RequestListItem, 'noteCount' | 'latestNotePreview'>;
 
-export async function createRequest(message: string): Promise<CreatedRequest> {
+export async function createRequest(message: string): Promise<RequestSummary> {
   const res = await fetch(`${API_URL}/requests`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -45,7 +48,7 @@ export async function createRequest(message: string): Promise<CreatedRequest> {
 export async function updateRequestStatus(
   id: string,
   status: RequestStatus,
-): Promise<unknown> {
+): Promise<RequestSummary> {
   const res = await fetch(`${API_URL}/requests/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
